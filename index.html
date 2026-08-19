@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>ProfitTrack</title>
+  <meta name="description" content="Simple multi-business P&L tracker" />
+
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0b0f14" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="ProfitTrack" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- ===================== HOME (all businesses) ===================== -->
+    <section id="view-home" class="view active">
+      <div class="glow glow-tr"></div>
+      <div class="glow glow-bl"></div>
+
+      <div class="home-header">
+        <div>
+          <div class="eyebrow">COMBINED PORTFOLIO</div>
+          <h1 class="home-hero-title">Your businesses</h1>
+        </div>
+        <button class="cur-chip" id="cur-chip" data-action="cycle-currency">
+          <svg class="cur-hex" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.54 15H17a2 2 0 0 0-2 2v4.54"/><path d="M7 3.34V5a3 3 0 0 0 3 3a2 2 0 0 1 2 2c0 1.1.9 2 2 2a2 2 0 0 0 2-2c0-1.1.9-2 2-2h3.17"/><path d="M11 21.95V18a2 2 0 0 0-2-2a2 2 0 0 1-2-2v-1a2 2 0 0 0-2-2H2.05"/><circle cx="12" cy="12" r="10"/></svg>
+          <span id="cur-code">USD</span>
+        </button>
+      </div>
+
+      <div class="scroll-area">
+        <div id="home-empty" class="empty-state hidden">
+          <div class="segmented pill" role="tablist">
+            <button class="seg-btn active" data-hperiod="month">Month</button>
+            <button class="seg-btn" data-hperiod="year">Year</button>
+            <button class="seg-btn" data-hperiod="all">All Time</button>
+          </div>
+          <div class="card pnl-card hero-card">
+            <div class="pnl-value" id="home-pnl-empty">+$0.00</div>
+            <div class="pnl-change" id="home-sub-empty">0 businesses converted to USD</div>
+          </div>
+          <div class="rollup-cta">
+            <div>
+              <div class="eyebrow">BUSINESS ROLLUP</div>
+              <div class="rollup-title">Every operation, one view</div>
+            </div>
+            <button class="btn-pill" data-action="add-business">+ Business</button>
+          </div>
+          <div class="empty-mid">
+            <div class="empty-ico"><svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg></div>
+            <p class="empty-msg">Add your first business to begin.</p>
+          </div>
+        </div>
+
+        <div id="home-content">
+          <div class="segmented pill" role="tablist">
+            <button class="seg-btn active" data-hperiod="month">Month</button>
+            <button class="seg-btn" data-hperiod="year">Year</button>
+            <button class="seg-btn" data-hperiod="all">All Time</button>
+          </div>
+
+          <div class="card pnl-card hero-card">
+            <div class="hero-top">
+              <div class="card-label">COMBINED P&amp;L</div>
+              <span class="live-badge" id="live-badge">LIVE &middot; USD</span>
+            </div>
+            <div class="pnl-value" id="home-pnl">+$0.00</div>
+            <div class="pnl-change" id="home-sub">0 businesses converted to USD</div>
+          </div>
+
+          <div class="row-2">
+            <div class="card tile income-card">
+              <div class="tile-ico income"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10"/><path d="M17 7v10H7"/></svg></div>
+              <div><div class="card-label">INCOME</div><div class="stat income" id="home-income">+$0.00</div></div>
+            </div>
+            <div class="card tile expense-card">
+              <div class="tile-ico expense"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></div>
+              <div><div class="card-label">EXPENSES</div><div class="stat expense" id="home-expenses">-$0.00</div></div>
+            </div>
+          </div>
+
+          <div class="row-2">
+            <div class="card"><div class="card-label">PROFIT MARGIN</div><div class="stat" id="home-margin">&mdash;</div></div>
+            <div class="card"><div class="card-label">ACCOUNT BALANCE</div><div class="stat" id="home-balance">$0.00</div></div>
+          </div>
+
+          <div class="rollup-cta">
+            <div>
+              <div class="eyebrow">BUSINESS ROLLUP</div>
+              <div class="rollup-title">Every operation, one view</div>
+            </div>
+            <button class="btn-pill" data-action="add-business">+ Business</button>
+          </div>
+
+          <ul class="biz-list" id="biz-list"></ul>
+          <div class="fx-note" id="fx-note"></div>
+        </div>
+      </div>
+
+      <button class="home-fab" data-action="add-business" aria-label="Add business"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+      <nav class="home-tabbar">
+        <button class="home-tab active" data-action="go-home">
+          <span class="ht-ico"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg></span><span>Dashboard</span>
+        </button>
+        <button class="home-tab" data-action="home-transactions">
+          <span class="ht-ico"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2"/><path d="M3 11h3c.8 0 1.6.3 2.1.9l1.1.9c1.6 1.6 4.1 1.6 5.7 0l1.1-.9c.5-.5 1.3-.9 2.1-.9H21"/></svg></span><span>Transactions</span>
+        </button>
+        <button class="home-tab" data-action="home-settings">
+          <span class="ht-ico"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></span><span>Settings</span>
+        </button>
+      </nav>
+    </section>
+
+    <!-- ===================== BUSINESS DETAIL ===================== -->
+    <section id="view-business" class="view">
+      <div class="nav-bar">
+        <button class="nav-side back-btn" data-action="go-home"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg> Home</button>
+        <div class="nav-title" id="biz-nav-title">Business</div>
+        <button class="nav-side right icon-btn" data-action="business-settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
+
+      <div class="biz-tabs">
+        <button class="biz-tab active" data-btab="dashboard">Dashboard</button>
+        <button class="biz-tab" data-btab="transactions">Transactions</button>
+        <button class="biz-tab" data-btab="partners">Partners</button>
+      </div>
+
+      <div class="scroll-area">
+        <!-- DASHBOARD PANE -->
+        <div id="pane-dashboard" class="pane active">
+          <div class="segmented" role="tablist">
+            <button class="seg-btn" data-period="week">WEEK</button>
+            <button class="seg-btn active" data-period="month">MONTH</button>
+            <button class="seg-btn" data-period="year">YEAR</button>
+            <button class="seg-btn" data-period="all">ALL</button>
+          </div>
+
+          <div class="card pnl-card">
+            <div class="card-label">NET P&amp;L</div>
+            <div class="pnl-value" id="pnl-value">+$0.00</div>
+            <div class="pnl-change" id="pnl-change">—</div>
+          </div>
+
+          <div class="row-2">
+            <div class="card">
+              <div class="card-label">INCOME</div>
+              <div class="stat income" id="stat-income">+$0.00</div>
+            </div>
+            <div class="card">
+              <div class="card-label">EXPENSES</div>
+              <div class="stat expense" id="stat-expenses">-$0.00</div>
+            </div>
+          </div>
+          <div class="row-2">
+            <div class="card">
+              <div class="card-label">PROFIT MARGIN</div>
+              <div class="stat" id="stat-margin">—</div>
+            </div>
+            <div class="card">
+              <div class="card-label">ACCOUNT BALANCE</div>
+              <div class="stat" id="stat-balance">$0.00</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-label">CUMULATIVE P&amp;L</div>
+            <div class="chart-wrap"><canvas id="pnl-chart" height="220"></canvas></div>
+          </div>
+        </div>
+
+        <!-- TRANSACTIONS PANE -->
+        <div id="pane-transactions" class="pane">
+          <div class="search-wrap"><input type="search" id="tx-search" placeholder="Search description or category" /></div>
+          <div class="segmented small">
+            <button class="seg-btn active" data-filter="all">All</button>
+            <button class="seg-btn" data-filter="income">Money In</button>
+            <button class="seg-btn" data-filter="expense">Money Out</button>
+          </div>
+          <ul class="tx-list" id="tx-list"></ul>
+          <p class="tx-empty hidden" id="tx-empty">No transactions match.</p>
+        </div>
+
+        <!-- PARTNERS PANE -->
+        <div id="pane-partners" class="pane">
+          <p class="hint" id="partners-hint">Partners earn a % of net profit. Loss periods reduce their share (carried forward).</p>
+          <ul class="partner-list" id="partner-list"></ul>
+          <button class="btn-secondary block" data-action="add-partner">+ Add Partner</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== BUSINESS SETTINGS ===================== -->
+    <section id="view-bizsettings" class="view">
+      <div class="nav-bar">
+        <button class="nav-side back-btn" data-action="back-to-business"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg> Back</button>
+        <div class="nav-title">Settings</div>
+        <div class="nav-side right"></div>
+      </div>
+      <div class="scroll-area">
+        <div class="settings-group">
+          <div class="settings-title">BUSINESS</div>
+          <label class="field"><span>Business Name</span><input type="text" id="set-biz-name" /></label>
+          <label class="field"><span>Currency</span>
+            <select id="set-currency">
+              <option value="USD">USD ($)</option><option value="DOP">DOP (RD$)</option>
+              <option value="EUR">EUR (€)</option>
+              <option value="GBP">GBP (£)</option><option value="CAD">CAD ($)</option>
+              <option value="AUD">AUD ($)</option>
+            </select>
+          </label>
+          <label class="field"><span>Starting Account Balance</span><input type="number" id="set-start-balance" inputmode="decimal" step="0.01" /></label>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-title">DEALS (optional)</div>
+          <p class="hint">Group income/expenses into a deal (a project) so a partner can earn a % of just that deal's profit.</p>
+          <ul class="cat-list" id="venture-list"></ul>
+          <div class="cat-add"><input type="text" id="venture-new" placeholder="New deal" /><button class="btn-secondary" data-action="add-venture">Add</button></div>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-title">CATEGORIES</div>
+          <ul class="cat-list" id="cat-list"></ul>
+          <div class="cat-add"><input type="text" id="cat-new" placeholder="New category" /><button class="btn-secondary" data-action="add-category">Add</button></div>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-title">EXCHANGE RATES (manual fallback)</div>
+          <p class="hint">Used on the Home dashboard when live rates are unavailable (offline). Enter how many units of each currency equal 1 USD. Example: 1 USD = 60 DOP.</p>
+          <div id="manual-rates"></div>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-title">DATA</div>
+          <button class="btn-secondary block" data-action="export">Export This Business (CSV)</button>
+          <label class="btn-secondary block file-btn">Import (CSV)<input type="file" id="import-file" accept=".csv" hidden /></label>
+          <button class="btn-secondary block" data-action="load-sample">Load Sample Data</button>
+          <button class="btn-danger block" data-action="delete-business">Delete This Business</button>
+        </div>
+
+        <p class="storage-note">All data is stored locally on this device. Nothing is sent to any server, bank, or third party.</p>
+      </div>
+    </section>
+
+    <!-- ===================== ADD/EDIT TRANSACTION SHEET ===================== -->
+    <div id="tx-sheet" class="sheet-overlay hidden">
+      <div class="sheet">
+        <div class="sheet-header"><span id="sheet-title">Add Transaction</span><button class="sheet-close" data-action="close-sheet"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>
+        <div class="sheet-body">
+          <div class="prompt-q">What happened?</div>
+          <div class="row-2 type-toggle">
+            <button class="type-btn income active" data-type="income">MONEY IN</button>
+            <button class="type-btn expense" data-type="expense">MONEY OUT</button>
+          </div>
+          <label class="field"><span>Amount</span><input type="number" id="tx-amount" inputmode="decimal" step="0.01" placeholder="0.00" /></label>
+          <label class="field"><span>Category</span><select id="tx-category"></select></label>
+          <label class="field" id="tx-venture-field"><span>Deal (optional)</span><select id="tx-venture"></select></label>
+          <label class="field"><span>Date</span><input type="date" id="tx-date" /></label>
+          <label class="field"><span>Description (optional)</span><input type="text" id="tx-description" placeholder="e.g. Card sales" /></label>
+          <button class="btn-primary block" data-action="save-tx">Save Transaction</button>
+          <button class="btn-danger block hidden" id="tx-delete-btn" data-action="delete-tx">Delete Transaction</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== PARTNER SHEET ===================== -->
+    <div id="partner-sheet" class="sheet-overlay hidden">
+      <div class="sheet">
+        <div class="sheet-header"><span id="partner-sheet-title">Add Partner</span><button class="sheet-close" data-action="close-partner-sheet"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>
+        <div class="sheet-body">
+          <label class="field"><span>Partner Name</span><input type="text" id="partner-name" placeholder="e.g. Alex" /></label>
+          <label class="field"><span>Share of Net Profit (%)</span><input type="number" id="partner-pct" inputmode="decimal" step="0.1" min="0" max="100" placeholder="50" /></label>
+          <label class="field"><span>Applies to</span>
+            <select id="partner-scope">
+              <option value="business">Whole business profit</option>
+            </select>
+          </label>
+          <button class="btn-primary block" data-action="save-partner">Save Partner</button>
+          <button class="btn-danger block hidden" id="partner-delete-btn" data-action="delete-partner">Remove Partner</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== PAYOUT SHEET ===================== -->
+    <div id="payout-sheet" class="sheet-overlay hidden">
+      <div class="sheet">
+        <div class="sheet-header"><span id="payout-sheet-title">Record Payout</span><button class="sheet-close" data-action="close-payout-sheet"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>
+        <div class="sheet-body">
+          <p class="hint" id="payout-context"></p>
+          <label class="field"><span>Amount Paid to Partner</span><input type="number" id="payout-amount" inputmode="decimal" step="0.01" placeholder="0.00" /></label>
+          <label class="field"><span>Date</span><input type="date" id="payout-date" /></label>
+          <label class="field"><span>Note (optional)</span><input type="text" id="payout-note" placeholder="e.g. Cash, Venmo" /></label>
+          <button class="btn-primary block" data-action="save-payout">Save Payout</button>
+          <div id="payout-history"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== ADD BUSINESS SHEET ===================== -->
+    <div id="biz-sheet" class="sheet-overlay hidden">
+      <div class="sheet">
+        <div class="sheet-header"><span>Add Business</span><button class="sheet-close" data-action="close-biz-sheet"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>
+        <div class="sheet-body">
+          <label class="field"><span>Business Name</span><input type="text" id="biz-name" placeholder="e.g. My Shop" /></label>
+          <label class="field"><span>Currency</span>
+            <select id="biz-currency">
+              <option value="USD">USD ($)</option><option value="DOP">DOP (RD$)</option>
+              <option value="EUR">EUR (€)</option>
+              <option value="GBP">GBP (£)</option><option value="CAD">CAD ($)</option>
+              <option value="AUD">AUD ($)</option>
+            </select>
+          </label>
+          <label class="field"><span>Starting Account Balance</span><input type="number" id="biz-start-balance" inputmode="decimal" step="0.01" placeholder="0.00" /></label>
+          <button class="btn-primary block" data-action="save-business">Create Business</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating add-transaction button (only in business view) -->
+    <button class="fab-fixed hidden" id="fab" data-action="open-add" aria-label="Add transaction"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    }
+  </script>
+</body>
+</html>
