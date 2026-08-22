@@ -185,7 +185,21 @@ function scopeNetProfit(b, partner) {
   if (partner.scope === 'deal') txs = txs.filter(t => t.dealId === partner.dealId);
   return pnl(txs);
 }
-function partnerEarned(b, partner){ return scopeNetProfit(b, partner) * (partner.sharePct/100); } // Option B: not floored
+// Net profit of a single deal (income - expenses of all txs tagged to that deal). B2 basis.
+function dealNetProfit(b, dealId) {
+  return pnl(b.transactions.filter(t => t.dealId === dealId));
+}
+// Total a partner has earned: legacy scope share PLUS any per-deal (B2) splits assigned to them.
+function partnerEarned(b, partner){
+  let earned = scopeNetProfit(b, partner) * (partner.sharePct/100); // legacy business/deal scope (Option B: not floored)
+  // NEW: deals that carry this partner directly get sharePct% of that deal's net profit
+  (b.deals||[]).forEach(d => {
+    if (d.partnerId === partner.id && isFinite(d.sharePct)) {
+      earned += dealNetProfit(b, d.id) * (d.sharePct/100);
+    }
+  });
+  return earned;
+}
 function partnerPaid(b, partner){ return b.payouts.filter(p=>p.partnerId===partner.id).reduce((s,p)=>s+p.amount,0); }
 function partnerOwed(b, partner){ return partnerEarned(b,partner) - partnerPaid(b,partner); }
 
@@ -433,9 +447,16 @@ function renderPartners(b){
   }
   b.partners.forEach(p=>{
     const earned=partnerEarned(b,p), paid=partnerPaid(b,p), owed=partnerOwed(b,p);
-    const scopeText=p.scope==='deal'
-      ? `${p.sharePct}% of deal: ${escapeHtml((b.deals.find(d=>d.id===p.dealId)||{}).name||'—')}`
-      : `${p.sharePct}% of whole business`;
+    // deals this partner is attached to (B2 per-deal splits)
+    const pDeals=(b.deals||[]).filter(d=>d.partnerId===p.id&&isFinite(d.sharePct));
+    let scopeText;
+    if(pDeals.length){
+      scopeText = pDeals.map(d=>`${d.sharePct}% of net profit — ${escapeHtml(d.name)}`).join('<br>');
+    } else if(p.scope==='deal'){
+      scopeText = `${p.sharePct}% of deal: ${escapeHtml((b.deals.find(d=>d.id===p.dealId)||{}).name||'—')}`;
+    } else {
+      scopeText = p.sharePct ? `${p.sharePct}% of whole business` : 'No active split';
+    }
     const li=document.createElement('li'); li.className='partner-card';
     li.innerHTML=`
       <div class="partner-top">
@@ -514,8 +535,45 @@ function renderDeals(b){
 function fillTxSelects(b){
   $('#tx-category').innerHTML=b.categories.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
   const vsel=$('#tx-venture');
-  vsel.innerHTML=`<option value="">— none —</option>`+b.deals.map(d=>`<option value="${d.id}">${escapeHtml(d.name)}</option>`).join('');
-  $('#tx-venture-field').classList.toggle('hidden', b.deals.length===0);
+  vsel.innerHTML=`<option value="">— none —</option>`
+    +b.deals.map(d=>`<option value="${d.id}">${escapeHtml(d.name)}${d.partnerId?' 🤝':''}</option>`).join('')
+    +`<option value="__new__">+ New deal…</option>`;
+  $('#tx-venture-field').classList.remove('hidden'); // always available so you can start a partner deal
+  // partner select (existing partners + new)
+  const psel=$('#tx-partner-select');
+  if(psel){
+    psel.innerHTML=b.partners.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')
+      +`<option value="__new__">+ New partner…</option>`;
+  }
+}
+// Show/hide the new-deal name field and the partner add-on based on the deal selection.
+function syncTxDealUI(){
+  const b=activeBiz(); if(!b) return;
+  const val=$('#tx-venture').value;
+  const isNew = val==='__new__';
+  $('#tx-newdeal-field').classList.toggle('hidden', !isNew);
+  // partner add-on shows for a new deal, or an existing deal that has no partner yet, or to display an existing one
+  const existing = (!isNew && val) ? b.deals.find(d=>d.id===val) : null;
+  const showPartnerBlock = isNew || !!existing;
+  $('#tx-partner-block').classList.toggle('hidden', !showPartnerBlock);
+  const toggle=$('#tx-partner-toggle');
+  if(existing && existing.partnerId){
+    // preload existing deal's partner and lock the toggle on
+    toggle.checked=true; $('#tx-partner-fields').classList.remove('hidden');
+    $('#tx-partner-select').value=existing.partnerId;
+    $('#tx-partner-pct').value=existing.sharePct;
+    syncTxPartnerNewName();
+  } else {
+    // new deal or deal without a partner: start with the add-on collapsed
+    toggle.checked=false; $('#tx-partner-fields').classList.add('hidden');
+  }
+}
+function syncTxPartnerFields(){
+  $('#tx-partner-fields').classList.toggle('hidden', !$('#tx-partner-toggle').checked);
+  syncTxPartnerNewName();
+}
+function syncTxPartnerNewName(){
+  $('#tx-partner-newname-field').classList.toggle('hidden', $('#tx-partner-select').value!=='__new__');
 }
 function openTxSheet(id=null){
   const b=activeBiz(); if(!b) return;
@@ -534,6 +592,11 @@ function openTxSheet(id=null){
     $('#tx-venture').value=''; $('#tx-date').value=todayISO();
     $('#tx-description').value=''; del.classList.add('hidden');
   }
+  // reset partner add-on then sync visibility to the current deal selection
+  $('#tx-newdeal-name').value=''; $('#tx-partner-toggle').checked=false;
+  $('#tx-partner-pct').value=''; $('#tx-partner-newname').value='';
+  if($('#tx-partner-select').options.length) $('#tx-partner-select').selectedIndex=0;
+  syncTxDealUI();
   $('#tx-sheet').classList.remove('hidden');
 }
 function closeTxSheet(){ $('#tx-sheet').classList.add('hidden'); editingTxId=null; }
@@ -542,8 +605,39 @@ function saveTransaction(){
   const b=activeBiz(); if(!b) return;
   const amount=parseFloat($('#tx-amount').value);
   if(!isFinite(amount)||amount<=0){ alert('Please enter a valid amount greater than 0.'); return; }
+
+  // --- Resolve the deal (may be new) ---
+  let dealId=$('#tx-venture').value||null;
+  if(dealId==='__new__'){
+    const dname=$('#tx-newdeal-name').value.trim();
+    if(!dname){ alert('Enter a name for the new deal.'); return; }
+    const nd={ id:uid(), name:dname };
+    b.deals.push(nd); dealId=nd.id;
+  }
+
+  // --- Resolve the partner add-on (only if a deal is selected and toggle on) ---
+  if(dealId && $('#tx-partner-toggle').checked){
+    const pct=parseFloat($('#tx-partner-pct').value);
+    if(!isFinite(pct)||pct<0||pct>100){ alert('Enter the partner\u2019s share (0\u2013100%).'); return; }
+    let partnerId=$('#tx-partner-select').value;
+    if(partnerId==='__new__'){
+      const pname=$('#tx-partner-newname').value.trim();
+      if(!pname){ alert('Enter the new partner\u2019s name.'); return; }
+      // deal-carried partner: sharePct 0 on the record so legacy scope math contributes nothing (B2 % lives on the deal)
+      const np={ id:uid(), name:pname, sharePct:0, scope:'business', dealId:null };
+      b.partners.push(np); partnerId=np.id;
+    }
+    // attach the split to the deal
+    const deal=b.deals.find(d=>d.id===dealId);
+    if(deal){ deal.partnerId=partnerId; deal.sharePct=Math.round(pct*100)/100; }
+  } else if(dealId && !$('#tx-partner-toggle').checked){
+    // toggle off on an existing partner deal -> detach partner from the deal
+    const deal=b.deals.find(d=>d.id===dealId);
+    if(deal && deal.partnerId){ delete deal.partnerId; delete deal.sharePct; }
+  }
+
   const data={ type:sheetType, amount:Math.round(amount*100)/100, category:$('#tx-category').value,
-    dealId:$('#tx-venture').value||null, date:$('#tx-date').value||todayISO(), description:$('#tx-description').value.trim() };
+    dealId:dealId, date:$('#tx-date').value||todayISO(), description:$('#tx-description').value.trim() };
   if(editingTxId){ Object.assign(b.transactions.find(x=>x.id===editingTxId),data); }
   else { b.transactions.push({ id:uid(), createdAt:Date.now(), ...data }); }
   saveState(); closeTxSheet(); renderBusiness();
@@ -785,6 +879,11 @@ function init(){
   $('#tx-search').addEventListener('input',e=>{ searchTerm=e.target.value; const b=activeBiz(); if(b) renderTransactions(b); });
   // Type toggle
   $$('.type-btn').forEach(b=>b.addEventListener('click',()=>setSheetType(b.dataset.type)));
+
+  // Transaction deal + partner add-on wiring
+  $('#tx-venture').addEventListener('change',syncTxDealUI);
+  $('#tx-partner-toggle').addEventListener('change',syncTxPartnerFields);
+  $('#tx-partner-select').addEventListener('change',syncTxPartnerNewName);
 
   // Settings inputs
   $('#set-biz-name').addEventListener('input',e=>{ const b=activeBiz(); if(!b) return; b.name=e.target.value; saveState(); $('#biz-nav-title').textContent=e.target.value||'Business'; });

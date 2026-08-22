@@ -261,6 +261,16 @@
           <label class="field"><span>Amount</span><input type="number" id="tx-amount" inputmode="decimal" step="0.01" placeholder="0.00" /></label>
           <label class="field"><span>Category</span><select id="tx-category"></select></label>
           <label class="field" id="tx-venture-field"><span>Deal (optional)</span><select id="tx-venture"></select></label>
+          <label class="field hidden" id="tx-newdeal-field"><span>New deal name</span><input type="text" id="tx-newdeal-name" placeholder="e.g. Nov consignment deal" /></label>
+          <div id="tx-partner-block" class="hidden">
+            <label class="checkbox-row"><input type="checkbox" id="tx-partner-toggle" /> <span>This deal has a partner (split its net profit)</span></label>
+            <div id="tx-partner-fields" class="hidden">
+              <label class="field"><span>Partner</span><select id="tx-partner-select"></select></label>
+              <label class="field hidden" id="tx-partner-newname-field"><span>New partner name</span><input type="text" id="tx-partner-newname" placeholder="e.g. Alex" /></label>
+              <label class="field"><span>Partner's share of this deal's net profit (%)</span><input type="number" id="tx-partner-pct" inputmode="decimal" step="0.1" min="0" max="100" placeholder="50" /></label>
+              <p class="hint" id="tx-partner-hint">Partner earns this % of (this deal's income − expenses). Tracked as owed until you record a payout.</p>
+            </div>
+          </div>
           <label class="field"><span>Date</span><input type="date" id="tx-date" /></label>
           <label class="field"><span>Description (optional)</span><input type="text" id="tx-description" placeholder="e.g. Card sales" /></label>
           <button class="btn-primary block" data-action="save-tx">Save Transaction</button>

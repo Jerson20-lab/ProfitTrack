@@ -1,5 +1,5 @@
 /* ProfitTrack service worker - offline app shell caching */
-const CACHE = 'profittrack-v10';
+const CACHE = 'profittrack-v11';
 const ASSETS = [
   './',
   './index.html',
