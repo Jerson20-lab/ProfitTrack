@@ -18,6 +18,16 @@
 <body>
   <div id="app">
 
+    <!-- ===== Loading overlay (icon splash) ===== -->
+    <div id="pt-loading" class="pt-overlay hidden">
+      <div class="pt-ring-wrap">
+        <div class="pt-spin-ring"></div>
+        <div class="pt-face"><img src="icons/icon-512.png" alt="Loading" /></div>
+      </div>
+      <div class="pt-title">ProfitTrack</div>
+      <div class="pt-sub" id="pt-sub">Counting the money…</div>
+    </div>
+
     <!-- ===================== HOME (all businesses) ===================== -->
     <section id="view-home" class="view active">
       <div class="glow glow-tr"></div>
@@ -259,16 +269,21 @@
             <button class="type-btn expense" data-type="expense">MONEY OUT</button>
           </div>
           <label class="field"><span>Amount</span><input type="number" id="tx-amount" inputmode="decimal" step="0.01" placeholder="0.00" /></label>
+          <div class="field hidden" id="tx-moneytype-field"><span>Money type</span>
+            <div class="row-2 type-toggle mt-toggle">
+              <button type="button" class="mt-btn active" data-mt="revenue">Revenue (earnings)</button>
+              <button type="button" class="mt-btn" data-mt="capital">Capital (investment)</button>
+            </div>
+          </div>
           <label class="field"><span>Category</span><select id="tx-category"></select></label>
-          <label class="field" id="tx-venture-field"><span>Deal (optional)</span><select id="tx-venture"></select></label>
-          <label class="field hidden" id="tx-newdeal-field"><span>New deal name</span><input type="text" id="tx-newdeal-name" placeholder="e.g. Nov consignment deal" /></label>
+          <label class="field"><span>Deal name (optional)</span><input type="text" id="tx-dealname" placeholder="e.g. Nov consignment" list="tx-deal-list" /><datalist id="tx-deal-list"></datalist></label>
           <div id="tx-partner-block" class="hidden">
-            <label class="checkbox-row"><input type="checkbox" id="tx-partner-toggle" /> <span>This deal has a partner (split its net profit)</span></label>
+            <label class="checkbox-row"><input type="checkbox" id="tx-partner-toggle" /> <span>This deal has a partner (split its profit)</span></label>
             <div id="tx-partner-fields" class="hidden">
               <label class="field"><span>Partner</span><select id="tx-partner-select"></select></label>
               <label class="field hidden" id="tx-partner-newname-field"><span>New partner name</span><input type="text" id="tx-partner-newname" placeholder="e.g. Alex" /></label>
-              <label class="field"><span>Partner's share of this deal's net profit (%)</span><input type="number" id="tx-partner-pct" inputmode="decimal" step="0.1" min="0" max="100" placeholder="50" /></label>
-              <p class="hint" id="tx-partner-hint">Partner earns this % of (this deal's income − expenses). Tracked as owed until you record a payout.</p>
+              <label class="field"><span>Partner's share of deal profit (%)</span><input type="number" id="tx-partner-pct" inputmode="decimal" step="0.1" min="0" max="100" placeholder="50" /></label>
+              <p class="hint" id="tx-partner-hint">Profit = Revenue − Capital − Expenses. Partner earns this % of the profit (never a loss). Tracked as owed until you record a payout.</p>
             </div>
           </div>
           <label class="field"><span>Date</span><input type="date" id="tx-date" /></label>
@@ -339,7 +354,16 @@
   <script src="app.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').then(reg => {
+          reg.update();
+          document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update(); });
+          let reloaded = false;
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (reloaded) return; reloaded = true; window.location.reload();
+          });
+        }).catch(() => {});
+      });
     }
   </script>
 </body>

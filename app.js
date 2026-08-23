@@ -185,17 +185,33 @@ function scopeNetProfit(b, partner) {
   if (partner.scope === 'deal') txs = txs.filter(t => t.dealId === partner.dealId);
   return pnl(txs);
 }
-// Net profit of a single deal (income - expenses of all txs tagged to that deal). B2 basis.
-function dealNetProfit(b, dealId) {
-  return pnl(b.transactions.filter(t => t.dealId === dealId));
+
+/* ---------- Capital-aware per-deal profit (B) ----------
+   A "deal" is identified by its typed name (t.dealName). Money type on income:
+     - moneyType 'capital'  = your investment (recovered first, NOT shared)
+     - moneyType 'revenue'  = earnings (shared after capital + expenses)
+   Deal profit = revenue - capital - expenses. Partner owed = max(0, sharePct% * profit). */
+function dealTxs(b, dealName){ return b.transactions.filter(t => (t.dealName||'') === dealName); }
+function dealBreakdown(b, dealName){
+  const txs = dealTxs(b, dealName);
+  const capital  = txs.filter(t => t.type==='income' && t.moneyType==='capital').reduce((s,t)=>s+t.amount,0);
+  const revenue  = txs.filter(t => t.type==='income' && t.moneyType!=='capital').reduce((s,t)=>s+t.amount,0);
+  const expenses = txs.filter(t => t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  return { capital, revenue, expenses, profit: revenue - capital - expenses };
 }
-// Total a partner has earned: legacy scope share PLUS any per-deal (B2) splits assigned to them.
+// All deal names that have a partner assigned to them
+function partnerDeals(b, partnerId){
+  const dp = b.dealPartners || {};
+  return Object.keys(dp).filter(name => dp[name] && dp[name].partnerId === partnerId);
+}
 function partnerEarned(b, partner){
-  let earned = scopeNetProfit(b, partner) * (partner.sharePct/100); // legacy business/deal scope (Option B: not floored)
-  // NEW: deals that carry this partner directly get sharePct% of that deal's net profit
-  (b.deals||[]).forEach(d => {
-    if (d.partnerId === partner.id && isFinite(d.sharePct)) {
-      earned += dealNetProfit(b, d.id) * (d.sharePct/100);
+  let earned = scopeNetProfit(b, partner) * (partner.sharePct/100); // legacy scope support (0 for deal-partners)
+  const dp = b.dealPartners || {};
+  partnerDeals(b, partner.id).forEach(name => {
+    const pct = dp[name].sharePct;
+    if (isFinite(pct)) {
+      const profit = dealBreakdown(b, name).profit;
+      earned += Math.max(0, profit * (pct/100)); // floored: partner never owes on a loss
     }
   });
   return earned;
@@ -424,12 +440,12 @@ function renderTransactions(b){
 
   list.innerHTML=''; $('#tx-empty').classList.toggle('hidden',txs.length>0);
   txs.forEach(t=>{
-    const deal=t.dealId?b.deals.find(d=>d.id===t.dealId):null;
+    const dealTag=t.dealName ? `<span class="tx-tag">${escapeHtml(t.dealName)}${t.moneyType==='capital'?' · capital':''}</span>` : '';
     const li=document.createElement('li'); li.className='tx-item';
     const amt=fmtMoney(t.type==='income'?t.amount:-t.amount,{sign:true,biz:b});
     li.innerHTML=`
       <div class="tx-main">
-        <div class="tx-cat">${escapeHtml(t.category)}${deal?`<span class="tx-tag">${escapeHtml(deal.name)}</span>`:''}</div>
+        <div class="tx-cat">${escapeHtml(t.category)}${dealTag}</div>
         ${t.description?`<div class="tx-desc">${escapeHtml(t.description)}</div>`:''}
         <div class="tx-meta">${formatDateShort(t.date)}</div>
       </div>
@@ -447,13 +463,19 @@ function renderPartners(b){
   }
   b.partners.forEach(p=>{
     const earned=partnerEarned(b,p), paid=partnerPaid(b,p), owed=partnerOwed(b,p);
-    // deals this partner is attached to (B2 per-deal splits)
-    const pDeals=(b.deals||[]).filter(d=>d.partnerId===p.id&&isFinite(d.sharePct));
+    // deals this partner is attached to (capital-aware per-deal splits)
+    const dp=b.dealPartners||{};
+    const pDealNames=partnerDeals(b,p.id);
     let scopeText;
-    if(pDeals.length){
-      scopeText = pDeals.map(d=>`${d.sharePct}% of net profit — ${escapeHtml(d.name)}`).join('<br>');
+    if(pDealNames.length){
+      scopeText = pDealNames.map(name=>{
+        const bd=dealBreakdown(b,name); const pct=dp[name].sharePct;
+        const share=Math.max(0, bd.profit*(pct/100));
+        return `<div class="deal-line"><b>${escapeHtml(name)}</b> — ${pct}% of profit<br>`
+          +`<span class="deal-calc">Rev ${fmtMoney(bd.revenue,{biz:b})} − Capital ${fmtMoney(bd.capital,{biz:b})} − Exp ${fmtMoney(bd.expenses,{biz:b})} = <b>${fmtMoney(bd.profit,{biz:b})}</b> profit → <b>${fmtMoney(share,{biz:b})}</b></span></div>`;
+      }).join('');
     } else if(p.scope==='deal'){
-      scopeText = `${p.sharePct}% of deal: ${escapeHtml((b.deals.find(d=>d.id===p.dealId)||{}).name||'—')}`;
+      scopeText = `${p.sharePct}% of deal (legacy)`;
     } else {
       scopeText = p.sharePct ? `${p.sharePct}% of whole business` : 'No active split';
     }
@@ -532,13 +554,14 @@ function renderDeals(b){
 /* ===================================================================
    SHEETS: transaction
    =================================================================== */
+let txMoneyType = 'revenue'; // 'revenue' | 'capital' (income only)
+
 function fillTxSelects(b){
   $('#tx-category').innerHTML=b.categories.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
-  const vsel=$('#tx-venture');
-  vsel.innerHTML=`<option value="">— none —</option>`
-    +b.deals.map(d=>`<option value="${d.id}">${escapeHtml(d.name)}${d.partnerId?' 🤝':''}</option>`).join('')
-    +`<option value="__new__">+ New deal…</option>`;
-  $('#tx-venture-field').classList.remove('hidden'); // always available so you can start a partner deal
+  // datalist of existing deal names for quick reuse (with 🤝 marker for partner deals)
+  const dp=b.dealPartners||{};
+  const names=[...new Set(b.transactions.map(t=>t.dealName).filter(Boolean))];
+  $('#tx-deal-list').innerHTML=names.map(n=>`<option value="${escapeHtml(n)}">${dp[n]?'🤝 partner deal':''}</option>`).join('');
   // partner select (existing partners + new)
   const psel=$('#tx-partner-select');
   if(psel){
@@ -546,25 +569,29 @@ function fillTxSelects(b){
       +`<option value="__new__">+ New partner…</option>`;
   }
 }
-// Show/hide the new-deal name field and the partner add-on based on the deal selection.
+// Money type toggle is only relevant for income ("money in").
+function syncTxMoneyType(){
+  const show = sheetType==='income';
+  $('#tx-moneytype-field').classList.toggle('hidden', !show);
+}
+function setTxMoneyType(mt){
+  txMoneyType = mt;
+  $$('.mt-btn').forEach(x=>x.classList.toggle('active', x.dataset.mt===mt));
+}
+// Partner add-on shows whenever a deal name is present; preloads an existing deal's partner.
 function syncTxDealUI(){
   const b=activeBiz(); if(!b) return;
-  const val=$('#tx-venture').value;
-  const isNew = val==='__new__';
-  $('#tx-newdeal-field').classList.toggle('hidden', !isNew);
-  // partner add-on shows for a new deal, or an existing deal that has no partner yet, or to display an existing one
-  const existing = (!isNew && val) ? b.deals.find(d=>d.id===val) : null;
-  const showPartnerBlock = isNew || !!existing;
-  $('#tx-partner-block').classList.toggle('hidden', !showPartnerBlock);
+  const name=$('#tx-dealname').value.trim();
+  const hasName = !!name;
+  $('#tx-partner-block').classList.toggle('hidden', !hasName);
   const toggle=$('#tx-partner-toggle');
-  if(existing && existing.partnerId){
-    // preload existing deal's partner and lock the toggle on
+  const dp=(b.dealPartners||{})[name];
+  if(dp && dp.partnerId){
     toggle.checked=true; $('#tx-partner-fields').classList.remove('hidden');
-    $('#tx-partner-select').value=existing.partnerId;
-    $('#tx-partner-pct').value=existing.sharePct;
+    $('#tx-partner-select').value=dp.partnerId;
+    $('#tx-partner-pct').value=dp.sharePct;
     syncTxPartnerNewName();
-  } else {
-    // new deal or deal without a partner: start with the add-on collapsed
+  } else if(!hasName){
     toggle.checked=false; $('#tx-partner-fields').classList.add('hidden');
   }
 }
@@ -584,60 +611,57 @@ function openTxSheet(id=null){
     const t=b.transactions.find(x=>x.id===id); if(!t) return;
     $('#sheet-title').textContent='Edit Transaction'; setSheetType(t.type);
     $('#tx-amount').value=t.amount; $('#tx-category').value=t.category;
-    $('#tx-venture').value=t.dealId||''; $('#tx-date').value=t.date;
+    $('#tx-dealname').value=t.dealName||''; $('#tx-date').value=t.date;
     $('#tx-description').value=t.description||''; del.classList.remove('hidden');
+    setTxMoneyType(t.moneyType==='capital'?'capital':'revenue');
   } else {
     $('#sheet-title').textContent='Add Transaction'; setSheetType('income');
     $('#tx-amount').value=''; $('#tx-category').value=b.categories[0]||'';
-    $('#tx-venture').value=''; $('#tx-date').value=todayISO();
+    $('#tx-dealname').value=''; $('#tx-date').value=todayISO();
     $('#tx-description').value=''; del.classList.add('hidden');
+    setTxMoneyType('revenue');
   }
-  // reset partner add-on then sync visibility to the current deal selection
-  $('#tx-newdeal-name').value=''; $('#tx-partner-toggle').checked=false;
+  // reset partner add-on then sync visibility to the current deal name
+  $('#tx-partner-toggle').checked=false;
   $('#tx-partner-pct').value=''; $('#tx-partner-newname').value='';
   if($('#tx-partner-select').options.length) $('#tx-partner-select').selectedIndex=0;
+  syncTxMoneyType();
   syncTxDealUI();
   $('#tx-sheet').classList.remove('hidden');
 }
 function closeTxSheet(){ $('#tx-sheet').classList.add('hidden'); editingTxId=null; }
-function setSheetType(type){ sheetType=type; $$('.type-btn').forEach(x=>x.classList.toggle('active',x.dataset.type===type)); }
+function setSheetType(type){ sheetType=type; $$('.type-btn').forEach(x=>x.classList.toggle('active',x.dataset.type===type)); syncTxMoneyType(); }
 function saveTransaction(){
   const b=activeBiz(); if(!b) return;
   const amount=parseFloat($('#tx-amount').value);
   if(!isFinite(amount)||amount<=0){ alert('Please enter a valid amount greater than 0.'); return; }
 
-  // --- Resolve the deal (may be new) ---
-  let dealId=$('#tx-venture').value||null;
-  if(dealId==='__new__'){
-    const dname=$('#tx-newdeal-name').value.trim();
-    if(!dname){ alert('Enter a name for the new deal.'); return; }
-    const nd={ id:uid(), name:dname };
-    b.deals.push(nd); dealId=nd.id;
-  }
+  const dealName=$('#tx-dealname').value.trim();
+  if(!b.dealPartners) b.dealPartners={};
 
-  // --- Resolve the partner add-on (only if a deal is selected and toggle on) ---
-  if(dealId && $('#tx-partner-toggle').checked){
+  // --- Resolve the partner add-on (only if a deal name is present and toggle on) ---
+  if(dealName && $('#tx-partner-toggle').checked){
     const pct=parseFloat($('#tx-partner-pct').value);
     if(!isFinite(pct)||pct<0||pct>100){ alert('Enter the partner\u2019s share (0\u2013100%).'); return; }
     let partnerId=$('#tx-partner-select').value;
     if(partnerId==='__new__'){
       const pname=$('#tx-partner-newname').value.trim();
       if(!pname){ alert('Enter the new partner\u2019s name.'); return; }
-      // deal-carried partner: sharePct 0 on the record so legacy scope math contributes nothing (B2 % lives on the deal)
+      // sharePct 0 on the partner record so legacy scope math contributes nothing (real % lives on the deal)
       const np={ id:uid(), name:pname, sharePct:0, scope:'business', dealId:null };
       b.partners.push(np); partnerId=np.id;
     }
-    // attach the split to the deal
-    const deal=b.deals.find(d=>d.id===dealId);
-    if(deal){ deal.partnerId=partnerId; deal.sharePct=Math.round(pct*100)/100; }
-  } else if(dealId && !$('#tx-partner-toggle').checked){
-    // toggle off on an existing partner deal -> detach partner from the deal
-    const deal=b.deals.find(d=>d.id===dealId);
-    if(deal && deal.partnerId){ delete deal.partnerId; delete deal.sharePct; }
+    b.dealPartners[dealName]={ partnerId, sharePct:Math.round(pct*100)/100 };
+  } else if(dealName && !$('#tx-partner-toggle').checked){
+    // toggle off -> remove any partner mapping for this deal name
+    if(b.dealPartners[dealName]) delete b.dealPartners[dealName];
   }
 
+  const isIncome = sheetType==='income';
   const data={ type:sheetType, amount:Math.round(amount*100)/100, category:$('#tx-category').value,
-    dealId:dealId, date:$('#tx-date').value||todayISO(), description:$('#tx-description').value.trim() };
+    dealName:dealName||null,
+    moneyType: isIncome ? txMoneyType : null,
+    date:$('#tx-date').value||todayISO(), description:$('#tx-description').value.trim() };
   if(editingTxId){ Object.assign(b.transactions.find(x=>x.id===editingTxId),data); }
   else { b.transactions.push({ id:uid(), createdAt:Date.now(), ...data }); }
   saveState(); closeTxSheet(); renderBusiness();
@@ -791,7 +815,7 @@ function removeDeal(id){
 /* ---------- Export / import (active business) ---------- */
 function exportCSV(){
   const b=activeBiz(); if(!b) return;
-  const header=['id','type','amount','category','dealId','date','description','createdAt'];
+  const header=['id','type','amount','category','dealName','moneyType','date','description','createdAt'];
   const rows=b.transactions.map(t=>header.map(h=>csvCell(t[h])).join(','));
   const csv=[header.join(','),...rows].join('\n');
   const blob=new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob);
@@ -807,7 +831,8 @@ function importCSV(file){
       const imported=rows.filter(r=>r.length&&r[idx('type')]).map(r=>({
         id:r[idx('id')]||uid(), type:r[idx('type')]==='expense'?'expense':'income',
         amount:Math.abs(parseFloat(r[idx('amount')])||0), category:r[idx('category')]||'Other',
-        dealId:(idx('dealId')>=0?r[idx('dealId')]:'')||null,
+        dealName:(idx('dealName')>=0?r[idx('dealName')]:'')||null,
+        moneyType:(idx('moneyType')>=0&&r[idx('moneyType')]==='capital')?'capital':(r[idx('type')]==='expense'?null:'revenue'),
         date:r[idx('date')]||todayISO(), description:r[idx('description')]||'',
         createdAt:Number(r[idx('createdAt')])||Date.now()
       }));
@@ -853,6 +878,10 @@ function loadSampleData(){
    EVENT WIRING
    =================================================================== */
 function init(){
+  // Cosmetic icon splash on open (~1.3s, no data work)
+  (function(){ const el=document.getElementById('pt-loading'); if(el){ el.classList.remove('hidden');
+    setTimeout(()=>{ el.classList.add('fading'); setTimeout(()=>el.classList.add('hidden'),350); },1300); } })();
+
   // Business sub-tabs
   $$('.biz-tab').forEach(t=>t.addEventListener('click',()=>setBizTab(t.dataset.btab)));
 
@@ -881,9 +910,10 @@ function init(){
   $$('.type-btn').forEach(b=>b.addEventListener('click',()=>setSheetType(b.dataset.type)));
 
   // Transaction deal + partner add-on wiring
-  $('#tx-venture').addEventListener('change',syncTxDealUI);
+  $('#tx-dealname').addEventListener('input',syncTxDealUI);
   $('#tx-partner-toggle').addEventListener('change',syncTxPartnerFields);
   $('#tx-partner-select').addEventListener('change',syncTxPartnerNewName);
+  $$('.mt-btn').forEach(btn=>btn.addEventListener('click',()=>setTxMoneyType(btn.dataset.mt)));
 
   // Settings inputs
   $('#set-biz-name').addEventListener('input',e=>{ const b=activeBiz(); if(!b) return; b.name=e.target.value; saveState(); $('#biz-nav-title').textContent=e.target.value||'Business'; });
