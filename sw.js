@@ -1,5 +1,5 @@
 /* ProfitTrack service worker - offline app shell caching */
-const CACHE = 'profittrack-v17';
+const CACHE = 'profittrack-v18';
 const ASSETS = [
   './',
   './index.html',
@@ -16,6 +16,11 @@ self.addEventListener('install', event => {
   );
 });
 
+// allow the page to trigger immediate activation of an updated worker
+self.addEventListener('message', event => {
+  if (event.data === 'SKIP_WAITING') self.skipWaiting();
+});
+
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
@@ -27,11 +32,11 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
-  const isShell = url.origin === location.origin &&
-    /\.(html|css|js)$|\/$/.test(url.pathname);
+  // App shell AND icons: network-first so code and icon changes show immediately.
+  const isShellOrIcon = url.origin === location.origin &&
+    (/\.(html|css|js|png|json)$|\/$/.test(url.pathname));
 
-  if (isShell) {
-    // Network-first: always try to get the freshest app code, fall back to cache offline.
+  if (isShellOrIcon) {
     event.respondWith(
       fetch(event.request).then(resp => {
         if (resp.ok) {
@@ -44,17 +49,8 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Cache-first for other assets (icons, etc.)
+  // Cache-first for anything else
   event.respondWith(
-    caches.match(event.request).then(cached => {
-      if (cached) return cached;
-      return fetch(event.request).then(resp => {
-        if (resp.ok && url.origin === location.origin) {
-          const copy = resp.clone();
-          caches.open(CACHE).then(c => c.put(event.request, copy));
-        }
-        return resp;
-      }).catch(() => cached);
-    })
+    caches.match(event.request).then(cached => cached || fetch(event.request))
   );
 });

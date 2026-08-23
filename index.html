@@ -358,6 +358,16 @@
         navigator.serviceWorker.register('sw.js').then(reg => {
           reg.update();
           document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update(); });
+          // when an updated worker is found, wait for it to install then activate it
+          reg.addEventListener('updatefound', () => {
+            const nw = reg.installing;
+            if (!nw) return;
+            nw.addEventListener('statechange', () => {
+              if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+                nw.postMessage && nw.postMessage('SKIP_WAITING');
+              }
+            });
+          });
           let reloaded = false;
           navigator.serviceWorker.addEventListener('controllerchange', () => {
             if (reloaded) return; reloaded = true; window.location.reload();
