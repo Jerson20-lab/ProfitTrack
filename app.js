@@ -401,7 +401,10 @@ function renderDashboard(b){
 
 function drawChart(txs){
   const canvas=$('#pnl-chart'); const ctx=canvas.getContext('2d');
-  const dpr=window.devicePixelRatio||1; const cssW=canvas.clientWidth||320; const cssH=220;
+  const dpr=window.devicePixelRatio||1;
+  // use the real rendered width; fall back to the parent/container so it never overflows sideways
+  const parentW = canvas.parentElement ? canvas.parentElement.clientWidth : 0;
+  const cssW = Math.max(1, canvas.clientWidth || parentW || 320); const cssH=220;
   canvas.width=cssW*dpr; canvas.height=cssH*dpr; ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,cssW,cssH);
 
   const sorted=[...txs].sort((a,b)=>txDate(a)-txDate(b)||a.createdAt-b.createdAt);

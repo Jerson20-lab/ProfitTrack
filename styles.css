@@ -43,6 +43,9 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 /* ===== Views ===== */
 .view { display: none; flex-direction: column; height: 100%; position: relative; }
 .view.active { display: flex; }
+/* keep the P&L chart inside the viewport (fixes sideways scroll + stretched empty text) */
+.chart-wrap { width: 100%; max-width: 100%; overflow: hidden; }
+.chart-wrap canvas, #pnl-chart { display: block; width: 100% !important; max-width: 100%; height: 220px; }
 
 /* ===== Ambient glows ===== */
 .glow { position: absolute; z-index: 0; border-radius: 50%; filter: blur(2px); pointer-events: none; }
@@ -78,7 +81,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .cur-hex { color: var(--green); display: flex; }
 
 /* ===== Scroll area ===== */
-.scroll-area { position: relative; z-index: 2; flex: 1; overflow-y: auto; padding: 8px 18px calc(120px + var(--safe-bottom)); -webkit-overflow-scrolling: touch; }
+.scroll-area { position: relative; z-index: 2; flex: 1; overflow-y: auto; overflow-x: hidden; max-width: 100%; padding: 8px 18px calc(120px + var(--safe-bottom)); -webkit-overflow-scrolling: touch; }
 
 /* ===== Segmented / period control ===== */
 .segmented, .segmented.pill {
