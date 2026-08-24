@@ -259,6 +259,11 @@ function setBizTab(tab){
   $$('.biz-tab').forEach(t=>t.classList.toggle('active',t.dataset.btab===tab));
   $$('.pane').forEach(p=>p.classList.remove('active'));
   $('#pane-'+tab).classList.add('active');
+  // the chart can only size correctly once its pane is visible — redraw after layout
+  if (tab === 'dashboard') {
+    const b = activeBiz();
+    if (b) requestAnimationFrame(() => requestAnimationFrame(() => renderDashboard(b)));
+  }
 }
 
 /* ===================================================================
@@ -402,9 +407,16 @@ function renderDashboard(b){
 function drawChart(txs){
   const canvas=$('#pnl-chart'); const ctx=canvas.getContext('2d');
   const dpr=window.devicePixelRatio||1;
-  // use the real rendered width; fall back to the parent/container so it never overflows sideways
-  const parentW = canvas.parentElement ? canvas.parentElement.clientWidth : 0;
-  const cssW = Math.max(1, canvas.clientWidth || parentW || 320); const cssH=220;
+  // measure the actual rendered width of the wrapper (respects card padding) so the
+  // canvas never draws wider than its box. Fall back through parent chain, then a small default.
+  const wrap = canvas.parentElement;
+  let cssW = 0;
+  if (wrap && wrap.getBoundingClientRect) cssW = Math.floor(wrap.getBoundingClientRect().width);
+  if (!cssW) cssW = canvas.clientWidth || (wrap && wrap.clientWidth) || 280;
+  cssW = Math.max(1, cssW);
+  const cssH=220;
+  // pin the canvas CSS size so it matches the drawing buffer exactly (no stretch/overflow)
+  canvas.style.width = cssW + 'px'; canvas.style.height = cssH + 'px';
   canvas.width=cssW*dpr; canvas.height=cssH*dpr; ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,cssW,cssH);
 
   const sorted=[...txs].sort((a,b)=>txDate(a)-txDate(b)||a.createdAt-b.createdAt);

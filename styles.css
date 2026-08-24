@@ -45,7 +45,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .view.active { display: flex; }
 /* keep the P&L chart inside the viewport (fixes sideways scroll + stretched empty text) */
 .chart-wrap { width: 100%; max-width: 100%; overflow: hidden; }
-.chart-wrap canvas, #pnl-chart { display: block; width: 100% !important; max-width: 100%; height: 220px; }
+.chart-wrap canvas, #pnl-chart { display: block; max-width: 100%; height: 220px; box-sizing: border-box; }
 
 /* ===== Ambient glows ===== */
 .glow { position: absolute; z-index: 0; border-radius: 50%; filter: blur(2px); pointer-events: none; }
