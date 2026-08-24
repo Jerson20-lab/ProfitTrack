@@ -300,3 +300,15 @@ svg { flex: none; }
 @keyframes ptpulse{0%,100%{transform:translate(-50%,-50%) scale(1);}50%{transform:translate(-50%,-50%) scale(1.08);}}
 .pt-title{margin-top:18px;color:var(--green);font-size:15px;font-weight:800;}
 .pt-sub{margin-top:6px;color:var(--muted,#8a94a6);font-size:12px;}
+
+/* One-time "App Updated" banner */
+.update-banner{position:fixed;left:12px;right:12px;bottom:24px;z-index:400;max-width:360px;margin:0 auto;flex-direction:column;align-items:stretch;
+  display:flex;gap:12px;
+  background:linear-gradient(90deg,var(--green),var(--green-deep));color:#06110a;
+  padding:12px 14px;border-radius:12px;box-shadow:0 8px 26px rgba(123,216,159,.35);font-size:13px;font-weight:800;
+  animation:ubIn .3s ease;}
+@keyframes ubIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.update-banner button{background:rgba(0,0,0,.3);border:none;color:#fff;width:26px;height:26px;border-radius:8px;font-size:14px;cursor:pointer;flex:0 0 auto;}
+.ub-row{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.ub-row span{flex:1;}
+.ub-img{width:100%;border-radius:9px;margin-top:10px;display:block;}

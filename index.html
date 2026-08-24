@@ -370,11 +370,25 @@
           });
           let reloaded = false;
           navigator.serviceWorker.addEventListener('controllerchange', () => {
-            if (reloaded) return; reloaded = true; window.location.reload();
+            if (reloaded) return; reloaded = true;
+            try { sessionStorage.setItem('appJustUpdated', '1'); } catch (e) {}
+            window.location.reload();
           });
         }).catch(() => {});
       });
     }
+    window.addEventListener('load', () => {
+      try {
+        if (sessionStorage.getItem('appJustUpdated') === '1') {
+          sessionStorage.removeItem('appJustUpdated');
+          const b = document.createElement('div');
+          b.className = 'update-banner';
+          b.innerHTML = '<div class="ub-row"><span>✓ App updated to the latest version</span><button aria-label="Close">✕</button></div><img class="ub-img" src="update-banner.png" alt="">';
+          b.querySelector('button').addEventListener('click', () => b.remove());
+          document.body.appendChild(b);
+        }
+      } catch (e) {}
+    });
   </script>
 </body>
 </html>

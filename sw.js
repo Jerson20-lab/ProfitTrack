@@ -1,5 +1,5 @@
 /* ProfitTrack service worker - offline app shell caching */
-const CACHE = 'profittrack-v20';
+const CACHE = 'profittrack-v23';
 const ASSETS = [
   './',
   './index.html',
@@ -7,7 +7,7 @@ const ASSETS = [
   './app.js',
   './manifest.json',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png','./update-banner.png'
 ];
 
 self.addEventListener('install', event => {
