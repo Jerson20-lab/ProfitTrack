@@ -275,6 +275,15 @@
               <button type="button" class="mt-btn" data-mt="capital">Capital (investment)</button>
             </div>
           </div>
+          <div id="tx-bizpartner-block" class="hidden">
+            <label class="checkbox-row"><input type="checkbox" id="tx-bizpartner-toggle" /> <span>Split business earnings with a partner</span></label>
+            <div id="tx-bizpartner-fields" class="hidden">
+              <label class="field"><span>Partner</span><select id="tx-bizpartner-select"></select></label>
+              <label class="field hidden" id="tx-bizpartner-newname-field"><span>New partner name</span><input type="text" id="tx-bizpartner-newname" placeholder="e.g. Alex" /></label>
+              <label class="field"><span>Partner's share of business earnings (%)</span><input type="number" id="tx-bizpartner-pct" inputmode="decimal" step="0.1" min="0" max="100" placeholder="50" /></label>
+              <p class="hint">Earnings = Sales − Capital − Expenses. Partner earns this % of earnings (never a loss). Applies to the whole business.</p>
+            </div>
+          </div>
           <label class="field"><span>Category</span><select id="tx-category"></select></label>
           <label class="field"><span>Deal name (optional)</span><input type="text" id="tx-dealname" placeholder="e.g. Nov consignment" list="tx-deal-list" /><datalist id="tx-deal-list"></datalist></label>
           <div id="tx-partner-block" class="hidden">

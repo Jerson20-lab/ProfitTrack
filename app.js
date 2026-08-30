@@ -183,7 +183,20 @@ function growth(cur,prev){ if(prev==null) return null; if(prev===0) return cur==
 function scopeNetProfit(b, partner) {
   let txs = b.transactions;
   if (partner.scope === 'deal') txs = txs.filter(t => t.dealId === partner.dealId);
-  return pnl(txs);
+  // Capital-aware: partner shares EARNINGS only. Earnings = revenue - capital - expenses.
+  // (Capital = income tagged moneyType 'capital'; it's the investment, not profit.)
+  const capital  = txs.filter(t => t.type==='income' && t.moneyType==='capital').reduce((s,t)=>s+t.amount,0);
+  const revenue  = txs.filter(t => t.type==='income' && t.moneyType!=='capital').reduce((s,t)=>s+t.amount,0);
+  const expenses = txs.filter(t => t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  return revenue - capital - expenses;
+}
+// Whole-business earnings breakdown (for display): sales, capital, expenses, earnings.
+function businessEarnings(b){
+  const txs = b.transactions;
+  const capital  = txs.filter(t => t.type==='income' && t.moneyType==='capital').reduce((s,t)=>s+t.amount,0);
+  const revenue  = txs.filter(t => t.type==='income' && t.moneyType!=='capital').reduce((s,t)=>s+t.amount,0);
+  const expenses = txs.filter(t => t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  return { capital, revenue, expenses, earnings: revenue - capital - expenses };
 }
 
 /* ---------- Capital-aware per-deal profit (B) ----------
@@ -205,7 +218,8 @@ function partnerDeals(b, partnerId){
   return Object.keys(dp).filter(name => dp[name] && dp[name].partnerId === partnerId);
 }
 function partnerEarned(b, partner){
-  let earned = scopeNetProfit(b, partner) * (partner.sharePct/100); // legacy scope support (0 for deal-partners)
+  // Business/deal scope share on EARNINGS, floored (partner never owes you on a loss).
+  let earned = Math.max(0, scopeNetProfit(b, partner) * (partner.sharePct/100));
   const dp = b.dealPartners || {};
   partnerDeals(b, partner.id).forEach(name => {
     const pct = dp[name].sharePct;
@@ -491,8 +505,13 @@ function renderPartners(b){
       }).join('');
     } else if(p.scope==='deal'){
       scopeText = `${p.sharePct}% of deal (legacy)`;
+    } else if(p.sharePct){
+      const be = businessEarnings(b);
+      const share = Math.max(0, be.earnings*(p.sharePct/100));
+      scopeText = `${p.sharePct}% of business earnings<br>`
+        +`<span class="deal-calc">Sales ${fmtMoney(be.revenue,{biz:b})} − Capital ${fmtMoney(be.capital,{biz:b})} − Exp ${fmtMoney(be.expenses,{biz:b})} = <b>${fmtMoney(be.earnings,{biz:b})}</b> earnings → <b>${fmtMoney(share,{biz:b})}</b></span>`;
     } else {
-      scopeText = p.sharePct ? `${p.sharePct}% of whole business` : 'No active split';
+      scopeText = 'No active split';
     }
     const li=document.createElement('li'); li.className='partner-card';
     li.innerHTML=`
@@ -583,11 +602,37 @@ function fillTxSelects(b){
     psel.innerHTML=b.partners.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')
       +`<option value="__new__">+ New partner…</option>`;
   }
+  // business-partner select (same list)
+  const bsel=$('#tx-bizpartner-select');
+  if(bsel){
+    bsel.innerHTML=b.partners.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')
+      +`<option value="__new__">+ New partner…</option>`;
+  }
 }
-// Money type toggle is only relevant for income ("money in").
+// Money type toggle + business-partner block are only relevant for income ("money in").
 function syncTxMoneyType(){
   const show = sheetType==='income';
   $('#tx-moneytype-field').classList.toggle('hidden', !show);
+  $('#tx-bizpartner-block').classList.toggle('hidden', !show);
+  if(show) syncBizPartner();
+}
+// preload an existing whole-business partner into the toggle
+function syncBizPartner(){
+  const b=activeBiz(); if(!b) return;
+  const bp=(b.partners||[]).find(p=>p.scope!=='deal' && p.sharePct>0);
+  const tog=$('#tx-bizpartner-toggle');
+  if(bp){
+    tog.checked=true; $('#tx-bizpartner-fields').classList.remove('hidden');
+    $('#tx-bizpartner-select').value=bp.id; $('#tx-bizpartner-pct').value=bp.sharePct;
+    syncBizPartnerNewName();
+  }
+}
+function syncBizPartnerFields(){
+  $('#tx-bizpartner-fields').classList.toggle('hidden', !$('#tx-bizpartner-toggle').checked);
+  syncBizPartnerNewName();
+}
+function syncBizPartnerNewName(){
+  $('#tx-bizpartner-newname-field').classList.toggle('hidden', $('#tx-bizpartner-select').value!=='__new__');
 }
 function setTxMoneyType(mt){
   txMoneyType = mt;
@@ -640,6 +685,13 @@ function openTxSheet(id=null){
   $('#tx-partner-toggle').checked=false;
   $('#tx-partner-pct').value=''; $('#tx-partner-newname').value='';
   if($('#tx-partner-select').options.length) $('#tx-partner-select').selectedIndex=0;
+  // reset business-partner add-on
+  if($('#tx-bizpartner-toggle')){
+    $('#tx-bizpartner-toggle').checked=false;
+    $('#tx-bizpartner-fields').classList.add('hidden');
+    $('#tx-bizpartner-pct').value=''; $('#tx-bizpartner-newname').value='';
+    if($('#tx-bizpartner-select').options.length) $('#tx-bizpartner-select').selectedIndex=0;
+  }
   syncTxMoneyType();
   syncTxDealUI();
   $('#tx-sheet').classList.remove('hidden');
@@ -670,6 +722,23 @@ function saveTransaction(){
   } else if(dealName && !$('#tx-partner-toggle').checked){
     // toggle off -> remove any partner mapping for this deal name
     if(b.dealPartners[dealName]) delete b.dealPartners[dealName];
+  }
+
+  // --- Business-wide partner (splits business earnings; set from the money-in sheet) ---
+  const isIncome0 = sheetType==='income';
+  if(isIncome0 && $('#tx-bizpartner-toggle') && $('#tx-bizpartner-toggle').checked){
+    const bpct=parseFloat($('#tx-bizpartner-pct').value);
+    if(!isFinite(bpct)||bpct<0||bpct>100){ alert('Enter the business partner\u2019s share (0\u2013100%).'); return; }
+    let bpId=$('#tx-bizpartner-select').value;
+    if(bpId==='__new__'){
+      const bname=$('#tx-bizpartner-newname').value.trim();
+      if(!bname){ alert('Enter the new partner\u2019s name.'); return; }
+      const np={ id:uid(), name:bname, sharePct:Math.round(bpct*100)/100, scope:'business', dealId:null };
+      b.partners.push(np); bpId=np.id;
+    } else {
+      const bp=b.partners.find(x=>x.id===bpId);
+      if(bp){ bp.scope='business'; bp.dealId=null; bp.sharePct=Math.round(bpct*100)/100; }
+    }
   }
 
   const isIncome = sheetType==='income';
@@ -927,6 +996,8 @@ function init(){
   // Transaction deal + partner add-on wiring
   $('#tx-dealname').addEventListener('input',syncTxDealUI);
   $('#tx-partner-toggle').addEventListener('change',syncTxPartnerFields);
+  $('#tx-bizpartner-toggle').addEventListener('change',syncBizPartnerFields);
+  $('#tx-bizpartner-select').addEventListener('change',syncBizPartnerNewName);
   $('#tx-partner-select').addEventListener('change',syncTxPartnerNewName);
   $$('.mt-btn').forEach(btn=>btn.addEventListener('click',()=>setTxMoneyType(btn.dataset.mt)));
 
