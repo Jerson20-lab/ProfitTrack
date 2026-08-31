@@ -173,9 +173,13 @@ function txInRange(tx,start,end){ const t=txDate(tx).getTime(); return t>=start.
 
 /* ---------- Calculations ---------- */
 function sumIncome(txs){ return txs.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0); }
+// Revenue = income that is NOT capital investment. Capital is money you put in, not profit.
+function sumRevenue(txs){ return txs.filter(t=>t.type==='income' && t.moneyType!=='capital').reduce((s,t)=>s+t.amount,0); }
+function sumCapital(txs){ return txs.filter(t=>t.type==='income' && t.moneyType==='capital').reduce((s,t)=>s+t.amount,0); }
 function sumExpense(txs){ return txs.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0); }
-function pnl(txs){ return sumIncome(txs)-sumExpense(txs); }
-function profitMargin(txs){ const inc=sumIncome(txs); if(inc===0) return null; return (pnl(txs)/inc)*100; }
+// P&L (profit) excludes capital investment — capital in isn't profit. P&L = revenue - expenses.
+function pnl(txs){ return sumRevenue(txs)-sumExpense(txs); }
+function profitMargin(txs){ const rev=sumRevenue(txs); if(rev===0) return null; return (pnl(txs)/rev)*100; }
 function bizBalance(b){ return b.startingBalance + sumIncome(b.transactions) - sumExpense(b.transactions); }
 function growth(cur,prev){ if(prev==null) return null; if(prev===0) return cur===0?0:null; return ((cur-prev)/Math.abs(prev))*100; }
 
@@ -395,7 +399,9 @@ function renderBusiness(){
 function renderDashboard(b){
   const { start,end,prevStart,prevEnd }=getRanges(currentPeriod);
   const inRange=b.transactions.filter(t=>txInRange(t,start,end));
-  const inc=sumIncome(inRange), exp=sumExpense(inRange), net=inc-exp, margin=profitMargin(inRange);
+  const rev=sumRevenue(inRange), cap=sumCapital(inRange), exp=sumExpense(inRange);
+  const net=rev-exp;                       // P&L excludes capital investment
+  const margin=profitMargin(inRange);
 
   const pnlEl=$('#pnl-value');
   pnlEl.textContent=fmtMoney(net,{sign:true,biz:b});
@@ -408,12 +414,13 @@ function renderDashboard(b){
     const word={week:'last week',month:'last month',year:'last year'}[currentPeriod];
     if(g===null){ changeEl.textContent=`— vs ${word}`; changeEl.className='pnl-change'; }
     else { const up=g>=0; changeEl.textContent=`${up?'↑':'↓'} ${Math.abs(g).toFixed(1)}% vs ${word}`; changeEl.className='pnl-change '+(up?'pos':'neg'); }
-  } else { changeEl.textContent='All-time total'; changeEl.className='pnl-change'; }
+  } else { changeEl.textContent='All-time total (excludes capital)'; changeEl.className='pnl-change'; }
 
-  $('#stat-income').textContent=fmtMoney(inc,{sign:true,biz:b});
+  $('#stat-income').textContent=fmtMoney(rev,{sign:true,biz:b});
   $('#stat-expenses').textContent=fmtMoney(-exp,{sign:true,biz:b});
   $('#stat-margin').textContent=margin===null?'—':`${margin.toFixed(1)}%`;
   $('#stat-balance').textContent=fmtMoney(bizBalance(b),{biz:b});
+  if($('#stat-capital')) $('#stat-capital').textContent=fmtMoney(cap,{biz:b});
 
   drawChart(inRange);
 }
@@ -435,7 +442,7 @@ function drawChart(txs){
 
   const sorted=[...txs].sort((a,b)=>txDate(a)-txDate(b)||a.createdAt-b.createdAt);
   const points=[{x:0,v:0}]; let cum=0;
-  sorted.forEach((t,i)=>{ cum+=t.type==='income'?t.amount:-t.amount; points.push({x:i+1,v:cum}); });
+  sorted.forEach((t,i)=>{ const isCap=(t.type==='income'&&t.moneyType==='capital'); const delta=isCap?0:(t.type==='income'?t.amount:-t.amount); cum+=delta; points.push({x:i+1,v:cum}); });
 
   const pad={l:10,r:10,t:16,b:16}; const w=cssW-pad.l-pad.r; const h=cssH-pad.t-pad.b;
   const vals=points.map(p=>p.v); let min=Math.min(0,...vals), max=Math.max(0,...vals);

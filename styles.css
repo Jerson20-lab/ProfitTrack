@@ -246,9 +246,9 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 
 /* ===== Sheets / modals ===== */
 .sheet-overlay { position: fixed; z-index: 50; inset: 0; display: flex; align-items: flex-end; justify-content: center; background: #040706c2; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
-.sheet { width: 100%; max-width: 480px; max-height: 94vh; overflow: auto; padding: 12px 19px calc(22px + var(--safe-bottom)); border: 1px solid var(--border); border-bottom: 0; border-radius: 25px 25px 0 0; background: #151a18; box-shadow: var(--shadow); animation: sheet-up .28s ease; }
+.sheet { width: 100%; max-width: 480px; max-height: calc(92vh - var(--safe-top)); overflow: auto; padding: calc(12px + var(--safe-top)) 19px calc(22px + var(--safe-bottom)); border: 1px solid var(--border); border-bottom: 0; border-radius: 25px 25px 0 0; background: #151a18; box-shadow: var(--shadow); animation: sheet-up .28s ease; }
 @keyframes sheet-up { from { opacity: .7; transform: translateY(30px); } }
-.sheet-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 2px 16px; font-family: "Manrope"; font-size: 18px; font-weight: 800; }
+.sheet-header { position: sticky; top: 0; z-index: 2; background: #151a18; display: flex; justify-content: space-between; align-items: center; padding: 8px 2px 16px; font-family: "Manrope"; font-size: 18px; font-weight: 800; }
 .sheet-close { width: 40px; height: 40px; border: 0; border-radius: 12px; background: var(--surface-soft); color: var(--muted); cursor: pointer; }
 .sheet-body { display: grid; gap: 13px; }
 .prompt-q { color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-size: 9px; font-weight: 700; }
