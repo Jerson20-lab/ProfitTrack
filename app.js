@@ -17,7 +17,7 @@
 
 'use strict';
 
-const APP_VERSION = 'v31';  // keep in sync with sw.js cache (profittrack-vNN)
+const APP_VERSION = 'v33';  // keep in sync with sw.js cache (profittrack-vNN)
 // Show version + let the user force a service-worker update check from Settings.
 function checkForUpdate(){
   const s = document.getElementById('update-status');
@@ -230,13 +230,16 @@ function newCapital(b){
     .filter(t => t.type==='income' && t.moneyType==='capital' && (t.capitalKind||'new')!=='reinvest')
     .reduce((s,t)=>s+t.amount,0);
 }
-// Total Capital Gain = Sales − outside capital − expenses (your actual gain on money invested).
+// Capital Gain = Total Sales − Original Capital (money you put in from your pocket).
+// Dead simple. Reinvested-profit capital entries are ignored entirely.
 function totalCapitalGain(b){
-  const be = businessEarnings(b);
-  const outside = newCapital(b);
-  const gain = be.revenue - outside - be.expenses;
-  const pct = outside>0 ? (gain/outside*100) : null;
-  return { gain, outside, pct };
+  const outside = newCapital(b); // "New money" capital only
+  const sales = b.transactions
+    .filter(t => t.type==='income' && t.moneyType!=='capital')
+    .reduce((s,t)=>s+t.amount,0);
+  const gain = sales - outside;
+  const pct = outside > 0 ? (gain / outside * 100) : null;
+  return { gain, outside, sales, pct };
 }
 // Full claim for a partner = their principal (100% theirs) + their % of earnings (floored).
 function partnerClaim(b, partner){
