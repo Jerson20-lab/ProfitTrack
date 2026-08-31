@@ -152,7 +152,7 @@
           </div>
 
           <div class="card pnl-card">
-            <div class="card-label">NET P&amp;L</div>
+            <div class="card-label">TOTAL CAPITAL GAIN</div>
             <div class="pnl-value" id="pnl-value">+$0.00</div>
             <div class="pnl-change" id="pnl-change">—</div>
           </div>
@@ -289,6 +289,12 @@
           <label class="field hidden" id="tx-capowner-field"><span>Whose capital is this?</span>
             <select id="tx-capowner"></select>
           </label>
+          <div class="field hidden" id="tx-capkind-field"><span>Capital source</span>
+            <div class="row-2 type-toggle mt-toggle">
+              <button type="button" class="ck-btn active" data-ck="new">New money (from pocket)</button>
+              <button type="button" class="ck-btn" data-ck="reinvest">Reinvested profit</button>
+            </div>
+          </div>
           <div id="tx-bizpartner-block" class="hidden">
             <label class="checkbox-row"><input type="checkbox" id="tx-bizpartner-toggle" /> <span>Split business earnings with a partner</span></label>
             <div id="tx-bizpartner-fields" class="hidden">

@@ -315,3 +315,5 @@ svg { flex: none; }
 .ub-row{display:flex;align-items:center;justify-content:space-between;gap:12px;}
 .ub-row span{flex:1;}
 .ub-img{width:100%;border-radius:9px;margin-top:10px;display:block;}
+.ck-btn{padding:9px;border-radius:9px;border:1px solid var(--border);background:var(--surface-soft);color:var(--muted);font-size:11px;font-weight:700;cursor:pointer;}
+.ck-btn.active{background:var(--green);color:#04120b;border-color:transparent;}

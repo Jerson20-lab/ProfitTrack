@@ -17,7 +17,7 @@
 
 'use strict';
 
-const APP_VERSION = 'v30';  // keep in sync with sw.js cache (profittrack-vNN)
+const APP_VERSION = 'v31';  // keep in sync with sw.js cache (profittrack-vNN)
 // Show version + let the user force a service-worker update check from Settings.
 function checkForUpdate(){
   const s = document.getElementById('update-status');
@@ -223,6 +223,20 @@ function principalOf(b, ownerId){
   return b.transactions
     .filter(t => t.type==='income' && t.moneyType==='capital' && (t.capitalOwner||'me')===ownerId)
     .reduce((s,t)=>s+t.amount,0);
+}
+// "New" outside capital only (excludes reinvested profit) — the real money you put in.
+function newCapital(b){
+  return b.transactions
+    .filter(t => t.type==='income' && t.moneyType==='capital' && (t.capitalKind||'new')!=='reinvest')
+    .reduce((s,t)=>s+t.amount,0);
+}
+// Total Capital Gain = Sales − outside capital − expenses (your actual gain on money invested).
+function totalCapitalGain(b){
+  const be = businessEarnings(b);
+  const outside = newCapital(b);
+  const gain = be.revenue - outside - be.expenses;
+  const pct = outside>0 ? (gain/outside*100) : null;
+  return { gain, outside, pct };
 }
 // Full claim for a partner = their principal (100% theirs) + their % of earnings (floored).
 function partnerClaim(b, partner){
@@ -443,21 +457,20 @@ function renderDashboard(b){
   const { start,end,prevStart,prevEnd }=getRanges(currentPeriod);
   const inRange=b.transactions.filter(t=>txInRange(t,start,end));
   const rev=sumRevenue(inRange), cap=sumCapital(inRange), exp=sumExpense(inRange);
-  const net=rev-exp;                       // P&L excludes capital investment
   const margin=profitMargin(inRange);
 
+  // Hero = Total Capital Gain (all-time): Sales − outside capital − expenses, with % on outside capital.
+  const tcg = totalCapitalGain(b);
   const pnlEl=$('#pnl-value');
-  pnlEl.textContent=fmtMoney(net,{sign:true,biz:b});
-  pnlEl.className='pnl-value '+(net>=0?'pos':'neg');
+  pnlEl.textContent=fmtMoney(tcg.gain,{sign:true,biz:b});
+  pnlEl.className='pnl-value '+(tcg.gain>=0?'pos':'neg');
 
   const changeEl=$('#pnl-change');
-  if(prevStart){
-    const prevNet=pnl(b.transactions.filter(t=>txInRange(t,prevStart,prevEnd)));
-    const g=growth(net,prevNet);
-    const word={week:'last week',month:'last month',year:'last year'}[currentPeriod];
-    if(g===null){ changeEl.textContent=`— vs ${word}`; changeEl.className='pnl-change'; }
-    else { const up=g>=0; changeEl.textContent=`${up?'↑':'↓'} ${Math.abs(g).toFixed(1)}% vs ${word}`; changeEl.className='pnl-change '+(up?'pos':'neg'); }
-  } else { changeEl.textContent='All-time total (excludes capital)'; changeEl.className='pnl-change'; }
+  if(tcg.pct!=null){
+    const up=tcg.pct>=0;
+    changeEl.textContent=`${up?'↑':'↓'} ${Math.abs(tcg.pct).toFixed(1)}% on ${fmtMoney(tcg.outside,{biz:b})} invested`;
+    changeEl.className='pnl-change '+(up?'pos':'neg');
+  } else { changeEl.textContent='No capital invested yet'; changeEl.className='pnl-change'; }
 
   $('#stat-income').textContent=fmtMoney(rev,{sign:true,biz:b});
   $('#stat-expenses').textContent=fmtMoney(-exp,{sign:true,biz:b});
@@ -644,6 +657,8 @@ function renderDeals(b){
    SHEETS: transaction
    =================================================================== */
 let txMoneyType = 'revenue'; // 'revenue' | 'capital' (income only)
+let txCapitalKind = 'new';   // 'new' (outside money) | 'reinvest' (recycled profit)
+function setTxCapitalKind(ck){ txCapitalKind = ck; $$('.ck-btn').forEach(x=>x.classList.toggle('active', x.dataset.ck===ck)); }
 
 function fillTxSelects(b){
   $('#tx-category').innerHTML=b.categories.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
@@ -676,6 +691,7 @@ function syncTxMoneyType(){
   $('#tx-bizpartner-block').classList.toggle('hidden', !show);
   // capital-owner only shows for income tagged as Capital
   $('#tx-capowner-field').classList.toggle('hidden', !(show && txMoneyType==='capital'));
+  $('#tx-capkind-field').classList.toggle('hidden', !(show && txMoneyType==='capital'));
   if(show) syncBizPartner();
 }
 // preload an existing whole-business partner into the toggle
@@ -700,6 +716,7 @@ function setTxMoneyType(mt){
   txMoneyType = mt;
   $$('.mt-btn').forEach(x=>x.classList.toggle('active', x.dataset.mt===mt));
   const f=$('#tx-capowner-field'); if(f) f.classList.toggle('hidden', !(sheetType==='income' && mt==='capital'));
+  const k=$('#tx-capkind-field'); if(k) k.classList.toggle('hidden', !(sheetType==='income' && mt==='capital'));
 }
 // Partner add-on shows whenever a deal name is present; preloads an existing deal's partner.
 function syncTxDealUI(){
@@ -738,12 +755,14 @@ function openTxSheet(id=null){
     $('#tx-description').value=t.description||''; del.classList.remove('hidden');
     setTxMoneyType(t.moneyType==='capital'?'capital':'revenue');
     if(t.moneyType==='capital' && $('#tx-capowner')) $('#tx-capowner').value = t.capitalOwner || 'me';
+    setTxCapitalKind(t.capitalKind==='reinvest'?'reinvest':'new');
   } else {
     $('#sheet-title').textContent='Add Transaction'; setSheetType('income');
     $('#tx-amount').value=''; $('#tx-category').value=b.categories[0]||'';
     $('#tx-dealname').value=''; $('#tx-date').value=todayISO();
     $('#tx-description').value=''; del.classList.add('hidden');
     setTxMoneyType('revenue');
+    setTxCapitalKind('new');
   }
   // reset partner add-on then sync visibility to the current deal name
   $('#tx-partner-toggle').checked=false;
@@ -810,6 +829,7 @@ function saveTransaction(){
     dealName:dealName||null,
     moneyType: isIncome ? txMoneyType : null,
     capitalOwner: (isIncome && txMoneyType==='capital') ? ($('#tx-capowner').value || 'me') : null,
+    capitalKind: (isIncome && txMoneyType==='capital') ? txCapitalKind : null,
     date:$('#tx-date').value||todayISO(), description:$('#tx-description').value.trim() };
   if(editingTxId){ Object.assign(b.transactions.find(x=>x.id===editingTxId),data); }
   else { b.transactions.push({ id:uid(), createdAt:Date.now(), ...data }); }
@@ -1065,6 +1085,7 @@ function init(){
   $('#tx-bizpartner-select').addEventListener('change',syncBizPartnerNewName);
   $('#tx-partner-select').addEventListener('change',syncTxPartnerNewName);
   $$('.mt-btn').forEach(btn=>btn.addEventListener('click',()=>setTxMoneyType(btn.dataset.mt)));
+  $$('.ck-btn').forEach(btn=>btn.addEventListener('click',()=>setTxCapitalKind(btn.dataset.ck)));
 
   // Settings inputs
   $('#set-biz-name').addEventListener('input',e=>{ const b=activeBiz(); if(!b) return; b.name=e.target.value; saveState(); $('#biz-nav-title').textContent=e.target.value||'Business'; });
