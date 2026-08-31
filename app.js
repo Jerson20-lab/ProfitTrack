@@ -17,7 +17,7 @@
 
 'use strict';
 
-const APP_VERSION = 'v29';  // keep in sync with sw.js cache (profittrack-vNN)
+const APP_VERSION = 'v30';  // keep in sync with sw.js cache (profittrack-vNN)
 // Show version + let the user force a service-worker update check from Settings.
 function checkForUpdate(){
   const s = document.getElementById('update-status');
@@ -218,6 +218,28 @@ function businessEarnings(b){
   const expenses = txs.filter(t => t.type==='expense').reduce((s,t)=>s+t.amount,0);
   return { capital, revenue, expenses, earnings: revenue - capital - expenses };
 }
+// Capital principal contributed by a given owner ('me' or a partnerId).
+function principalOf(b, ownerId){
+  return b.transactions
+    .filter(t => t.type==='income' && t.moneyType==='capital' && (t.capitalOwner||'me')===ownerId)
+    .reduce((s,t)=>s+t.amount,0);
+}
+// Full claim for a partner = their principal (100% theirs) + their % of earnings (floored).
+function partnerClaim(b, partner){
+  const be = businessEarnings(b);
+  const principal = principalOf(b, partner.id);
+  const earningsShare = Math.max(0, be.earnings * (partner.sharePct/100));
+  return { principal, earningsShare, total: principal + earningsShare };
+}
+// Your (owner) claim = your principal + your % of earnings. yourPct = 100 - sum(partner pcts), min 0.
+function ownerClaim(b){
+  const be = businessEarnings(b);
+  const partnerPct = (b.partners||[]).filter(p=>p.scope!=='deal').reduce((s,p)=>s+(p.sharePct||0),0);
+  const yourPct = Math.max(0, 100 - partnerPct);
+  const principal = principalOf(b, 'me');
+  const earningsShare = Math.max(0, be.earnings * (yourPct/100));
+  return { principal, earningsShare, yourPct, total: principal + earningsShare };
+}
 
 /* ---------- Capital-aware per-deal profit (B) ----------
    A "deal" is identified by its typed name (t.dealName). Money type on income:
@@ -238,8 +260,13 @@ function partnerDeals(b, partnerId){
   return Object.keys(dp).filter(name => dp[name] && dp[name].partnerId === partnerId);
 }
 function partnerEarned(b, partner){
-  // Business/deal scope share on EARNINGS, floored (partner never owes you on a loss).
-  let earned = Math.max(0, scopeNetProfit(b, partner) * (partner.sharePct/100));
+  // Business-scope partner: their TOTAL stake = their capital principal (100% theirs)
+  // + their % of earnings (floored). This is what you'd owe them if cashing out now.
+  let earned = 0;
+  if (partner.scope !== 'deal' && partner.sharePct) {
+    const c = partnerClaim(b, partner);
+    earned += c.total;
+  }
   const dp = b.dealPartners || {};
   partnerDeals(b, partner.id).forEach(name => {
     const pct = dp[name].sharePct;
@@ -530,12 +557,12 @@ function renderPartners(b){
       scopeText = `${p.sharePct}% of deal (legacy)`;
     } else if(p.sharePct){
       const be = businessEarnings(b);
-      const share = Math.max(0, be.earnings*(p.sharePct/100));
-      const roc = be.capital>0 ? (share/be.capital*100) : null;   // investor's return on the capital invested
+      const claim = partnerClaim(b, p);
       scopeText = `${p.sharePct}% of business earnings<br>`
-        +`<span class="deal-calc">Sales ${fmtMoney(be.revenue,{biz:b})} − Capital ${fmtMoney(be.capital,{biz:b})} − Exp ${fmtMoney(be.expenses,{biz:b})} = <b>${fmtMoney(be.earnings,{biz:b})}</b> earnings → <b>${fmtMoney(share,{biz:b})}</b>`
-        + (roc!=null ? `<br>Return on capital: <b>${roc.toFixed(1)}%</b> (${fmtMoney(share,{biz:b})} on ${fmtMoney(be.capital,{biz:b})} invested)` : '')
-        + `</span>`;
+        +`<span class="deal-calc">Sales ${fmtMoney(be.revenue,{biz:b})} − Capital ${fmtMoney(be.capital,{biz:b})} − Exp ${fmtMoney(be.expenses,{biz:b})} = <b>${fmtMoney(be.earnings,{biz:b})}</b> earnings`
+        + `<br>Their capital in pot: <b>${fmtMoney(claim.principal,{biz:b})}</b> (100% theirs)`
+        + `<br>Their earnings share: <b>${fmtMoney(claim.earningsShare,{biz:b})}</b>`
+        + `<br>Total claim: <b>${fmtMoney(claim.total,{biz:b})}</b></span>`;
     } else {
       scopeText = 'No active split';
     }
@@ -634,7 +661,12 @@ function fillTxSelects(b){
   const bsel=$('#tx-bizpartner-select');
   if(bsel){
     bsel.innerHTML=b.partners.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')
-      +`<option value="__new__">+ New partner…</option>`;
+      +`<option value="__new__">+ New partner…</option>`;  }
+  // capital-owner select: Me + each partner
+  const csel=$('#tx-capowner');
+  if(csel){
+    csel.innerHTML=`<option value="me">Me (my capital)</option>`
+      +b.partners.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
   }
 }
 // Money type toggle + business-partner block are only relevant for income ("money in").
@@ -642,6 +674,8 @@ function syncTxMoneyType(){
   const show = sheetType==='income';
   $('#tx-moneytype-field').classList.toggle('hidden', !show);
   $('#tx-bizpartner-block').classList.toggle('hidden', !show);
+  // capital-owner only shows for income tagged as Capital
+  $('#tx-capowner-field').classList.toggle('hidden', !(show && txMoneyType==='capital'));
   if(show) syncBizPartner();
 }
 // preload an existing whole-business partner into the toggle
@@ -665,6 +699,7 @@ function syncBizPartnerNewName(){
 function setTxMoneyType(mt){
   txMoneyType = mt;
   $$('.mt-btn').forEach(x=>x.classList.toggle('active', x.dataset.mt===mt));
+  const f=$('#tx-capowner-field'); if(f) f.classList.toggle('hidden', !(sheetType==='income' && mt==='capital'));
 }
 // Partner add-on shows whenever a deal name is present; preloads an existing deal's partner.
 function syncTxDealUI(){
@@ -702,6 +737,7 @@ function openTxSheet(id=null){
     $('#tx-dealname').value=t.dealName||''; $('#tx-date').value=t.date;
     $('#tx-description').value=t.description||''; del.classList.remove('hidden');
     setTxMoneyType(t.moneyType==='capital'?'capital':'revenue');
+    if(t.moneyType==='capital' && $('#tx-capowner')) $('#tx-capowner').value = t.capitalOwner || 'me';
   } else {
     $('#sheet-title').textContent='Add Transaction'; setSheetType('income');
     $('#tx-amount').value=''; $('#tx-category').value=b.categories[0]||'';
@@ -773,6 +809,7 @@ function saveTransaction(){
   const data={ type:sheetType, amount:Math.round(amount*100)/100, category:$('#tx-category').value,
     dealName:dealName||null,
     moneyType: isIncome ? txMoneyType : null,
+    capitalOwner: (isIncome && txMoneyType==='capital') ? ($('#tx-capowner').value || 'me') : null,
     date:$('#tx-date').value||todayISO(), description:$('#tx-description').value.trim() };
   if(editingTxId){ Object.assign(b.transactions.find(x=>x.id===editingTxId),data); }
   else { b.transactions.push({ id:uid(), createdAt:Date.now(), ...data }); }
