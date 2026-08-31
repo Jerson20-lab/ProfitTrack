@@ -515,8 +515,11 @@ function renderPartners(b){
     } else if(p.sharePct){
       const be = businessEarnings(b);
       const share = Math.max(0, be.earnings*(p.sharePct/100));
+      const roc = be.capital>0 ? (share/be.capital*100) : null;   // investor's return on the capital invested
       scopeText = `${p.sharePct}% of business earnings<br>`
-        +`<span class="deal-calc">Sales ${fmtMoney(be.revenue,{biz:b})} − Capital ${fmtMoney(be.capital,{biz:b})} − Exp ${fmtMoney(be.expenses,{biz:b})} = <b>${fmtMoney(be.earnings,{biz:b})}</b> earnings → <b>${fmtMoney(share,{biz:b})}</b></span>`;
+        +`<span class="deal-calc">Sales ${fmtMoney(be.revenue,{biz:b})} − Capital ${fmtMoney(be.capital,{biz:b})} − Exp ${fmtMoney(be.expenses,{biz:b})} = <b>${fmtMoney(be.earnings,{biz:b})}</b> earnings → <b>${fmtMoney(share,{biz:b})}</b>`
+        + (roc!=null ? `<br>Return on capital: <b>${roc.toFixed(1)}%</b> (${fmtMoney(share,{biz:b})} on ${fmtMoney(be.capital,{biz:b})} invested)` : '')
+        + `</span>`;
     } else {
       scopeText = 'No active split';
     }
@@ -650,7 +653,7 @@ function syncTxDealUI(){
   const b=activeBiz(); if(!b) return;
   const name=$('#tx-dealname').value.trim();
   const hasName = !!name;
-  $('#tx-partner-block').classList.toggle('hidden', !hasName);
+  $('#tx-partner-block').classList.add('hidden'); // deal-partner UI retired; use whole-business partner instead
   const toggle=$('#tx-partner-toggle');
   const dp=(b.dealPartners||{})[name];
   if(dp && dp.partnerId){
