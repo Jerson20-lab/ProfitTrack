@@ -258,6 +258,11 @@
           <label class="btn-secondary block file-btn">Import (CSV)<input type="file" id="import-file" accept=".csv" hidden /></label>
           <button class="btn-secondary block" data-action="load-sample">Load Sample Data</button>
           <button class="btn-danger block" data-action="delete-business">Delete This Business</button>
+
+          <div class="settings-title" style="margin-top:18px">APP</div>
+          <div class="field"><span>Version</span><div class="stat" id="app-version" style="font-size:15px">—</div></div>
+          <button class="btn-secondary block" data-action="check-update">Check for updates</button>
+          <p class="hint" id="update-status" style="margin-top:6px"></p>
         </div>
 
         <p class="storage-note">All data is stored locally on this device. Nothing is sent to any server, bank, or third party.</p>

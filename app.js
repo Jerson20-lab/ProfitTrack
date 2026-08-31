@@ -17,6 +17,22 @@
 
 'use strict';
 
+const APP_VERSION = 'v29';  // keep in sync with sw.js cache (profittrack-vNN)
+// Show version + let the user force a service-worker update check from Settings.
+function checkForUpdate(){
+  const s = document.getElementById('update-status');
+  if (!('serviceWorker' in navigator)) { if(s) s.textContent = 'Updates not supported in this browser.'; return; }
+  if (s) s.textContent = 'Checking for updates…';
+  navigator.serviceWorker.getRegistration().then(reg => {
+    if (!reg) { if(s) s.textContent = 'No service worker yet — reload once, then try again.'; return; }
+    reg.update().then(() => {
+      // if a new worker is waiting/installing, it'll activate and the page auto-reloads (banner shows)
+      if (reg.installing || reg.waiting) { if(s) s.textContent = 'Update found — installing… the app will refresh.'; }
+      else { if(s) s.textContent = `You're on the latest version (${APP_VERSION}).`; }
+    }).catch(() => { if(s) s.textContent = 'Could not check — check your connection.'; });
+  });
+}
+
 const STORAGE_KEY = 'profittrack.v2';
 const DEFAULT_CATEGORIES = ['Sales','Inventory','Shipping','Supplies','Advertising','Payroll','Other'];
 const CURRENCY_SYMBOLS = { USD:'$', DOP:'RD$', EUR:'€', GBP:'£', CAD:'$', AUD:'$' };
@@ -555,6 +571,8 @@ function openBusinessSettings(){
   $('#set-currency').value=b.currency;
   $('#set-start-balance').value=b.startingBalance||'';
   renderCategories(b); renderDeals(b); renderManualRates();
+  if($('#app-version')) $('#app-version').textContent = APP_VERSION;
+  if($('#update-status')) $('#update-status').textContent = '';
   showView('view-bizsettings');
 }
 function renderManualRates(){
@@ -1029,6 +1047,7 @@ function init(){
       'open-add':()=>openTxSheet(null), 'close-sheet':closeTxSheet, 'save-tx':saveTransaction, 'delete-tx':deleteTransaction,
       'add-category':addCategory, 'add-venture':addDeal,
       'export':exportCSV, 'load-sample':loadSampleData, 'delete-business':deleteBusiness,
+      'check-update':checkForUpdate,
       'add-partner':()=>openPartnerSheet(null), 'save-partner':savePartner, 'delete-partner':deletePartner, 'close-partner-sheet':closePartnerSheet,
       'save-payout':savePayout, 'close-payout-sheet':closePayoutSheet
     }[btn.dataset.action]||(()=>{}))();
